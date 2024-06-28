@@ -7,6 +7,18 @@ from scipy import sparse
 
 images = rgb_to_oklab(read_all_images(DATA_PATH) / 255)
 
+def bw(image, i=0):
+    im2 = np.zeros(image.shape + (3,))
+    im2[:,:,i] = image
+    if i != 0:
+        im2[:,:,0] = 0.5
+    return oklab_to_rgb(im2)
+plt.subplot(2,2,1).imshow(bw(images[0,:,:,0]))
+plt.subplot(2,2,2).imshow(bw(images[0,:,:,1], 1))
+plt.subplot(2,2,3).imshow(bw(images[0,:,:,2], 2))
+plt.subplot(2,2,4).imshow(oklab_to_rgb(images[0]))
+plt.show()
+
 
 from scipy.fftpack import dct, idct
 
@@ -31,9 +43,9 @@ class blind_slicer:
     def __init__(self, n_axes, axes):
 
         try:
-            self.axes = tuple(((a + len(arr.shape) if a < 0 else a) for a in axes))
+            self.axes = tuple(((a + n_axes if a < 0 else a) for a in axes))
         except TypeError:
-            self.axes = (axes + len(arr.shape) if axes < 0 else axes),
+            self.axes = (axes + n_axes if axes < 0 else axes),
         
         self.n_axes = n_axes
 
@@ -129,19 +141,30 @@ class FastJLTransformer:
         assert self.length == x.shape[axis]
         if axis < 0:
             axis += len(x.shape)
+        return axis_slicer(
+        
+            # DCT is almost as good as 
+            
+            #dct(
+                x * self.multiplier.reshape((1,)*axis + (-1,) + (1,)*(len(x.shape)-axis-1))
+            #, axis=axis, overwrite_x=True)
+
+            , axis)[self.indices]
+        # if axis < 0:
+            # axis += len(x.shape)
 
 
-        shape = list(x.shape)
-        shape[axis] = len(self.indices)
-        output = np.zeros(shape)
+        # shape = list(x.shape)
+        # shape[axis] = len(self.indices)
+        # output = np.zeros(shape)
         
-        temp = np.zeros(self.max_idx)
-        shape[axis] = None
+        # temp = np.zeros(self.max_idx)
+        # shape[axis] = None
         
-        for idx in self._row_enumerate(shape, axis):
-            output[idx] = self._fwht(temp, x[idx])
+        # for idx in self._row_enumerate(shape, axis):
+            # output[idx] = self._fwht(temp, x[idx])
         
-        return output
+        # return output
 
     def _row_enumerate(self, shape, axis, so_far = ()):
         if len(so_far) == axis:
@@ -187,15 +210,17 @@ fat2 = fat2.reshape(-1, 96*96*2)
 
 
 
-##for i in range(0, 8):
-##    for j in range(0, 8):
-##        plt.subplot(8,8,i*8+j+1).imshow(fat[i*96+j*8])
-##plt.show()
 
-transformer1 = FastJLTransformer(rng, 96*96, int(np.ceil(96*96*0.5)))
-transformer2 = FastJLTransformer(rng, 96*96*2, int(np.ceil(96*96*0.125)))
+
+transformer1 = FastJLTransformer(rng, 96*96, int(np.ceil(96*96*(3/4))))
+transformer2 = FastJLTransformer(rng, 96*96*2, int(np.ceil(96*96*2*(3/16))))
+
 
 basis1 = transformer1(fat)
+# for i in range(0, 64):
+    # plt.subplot(16,16,i+1).imshow(basis1[:, i].reshape(96,96))
+# plt.show()
+
 basis2 = transformer2(fat2)
 inputs1 = transformer1(images[:,:,:,0].reshape((-1, 96*96)), axis=1)
 inputs2 = transformer2(images[:,:,:,1:].reshape((-1, 96*96*2)), axis=1)
@@ -241,7 +266,7 @@ def pursuit(row_basis, vector, orthonormalize=False):
             
         
 
-        if not i & 0x1F or orthonormalize and not (i & 0x7):
+        if not i & 0x7F:
             r = np.linalg.norm(vector, ord=1)
             print(r)
             if r <= goal:
@@ -257,22 +282,25 @@ def channel(basis, vector):
     return result
 
 image = np.zeros((96, 96, 3))
-for i in range(min(10, inputs1.shape[0])):
+for i in range(min(10, images.shape[0])):
     r1, _ = pursuit(basis1, inputs1[i], orthonormalize=False)
-    image[:,:,0] = r1.reshape((96,96))
+    image[:,:,0] = transform_fn(r1.reshape((96,96)), (0,1))
+    image[:,:,1:] = 0
 
-##    r2, _ = pursuit(basis2, inputs2[i])
-##    image[:,:,1:] = r2.reshape((96,96,2))
-
-    ax1 = plt.subplot(1, 2, 1)
-    ax2 = plt.subplot(1, 2, 2)
-
+    ax1 = plt.subplot(1, 3, 1)
+    ax2 = plt.subplot(1, 3, 2)
+    ax3 = plt.subplot(1, 3, 3)
+    
     ax1.imshow(oklab_to_rgb(images[i]))
     ax2.imshow(oklab_to_rgb(image))
+    
+    
+    r2, _ = pursuit(basis2, inputs2[i])
+    image[:,:,1:] = transform_fn(r2.reshape((96,96,2)), (0,1))
 
+    ax3.imshow(oklab_to_rgb(image))
     
     plt.show()
-    
 
 
 

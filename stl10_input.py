@@ -2,6 +2,9 @@ import sys
 import os, sys, tarfile, errno
 import numpy as np
 import matplotlib.pyplot as plt
+
+
+# Code mostly taken from STL10 dataset webpage.
     
 if sys.version_info >= (3, 0, 0):
     import urllib.request as urllib # ugly but works
@@ -114,15 +117,18 @@ def download_and_extract():
     dest_directory = DATA_DIR
     if not os.path.exists(dest_directory):
         os.makedirs(dest_directory)
+       
     filename = DATA_URL.split('/')[-1]
     filepath = os.path.join(dest_directory, filename)
-    if not os.path.exists(filepath):
-        def _progress(count, block_size, total_size):
-            sys.stdout.write('\rDownloading %s %.2f%%' % (filename,
-                float(count * block_size) / float(total_size) * 100.0))
-            sys.stdout.flush()
-        filepath, _ = urllib.urlretrieve(DATA_URL, filepath, reporthook=_progress)
-        print('Downloaded', filename)
+    if not os.path.exists(DATA_PATH):
+        if not os.path.exists(filepath):
+            def _progress(count, block_size, total_size):
+                sys.stdout.write('\rDownloading %s %.2f%%' % (filename,
+                    float(count * block_size) / float(total_size) * 100.0))
+                sys.stdout.flush()
+            filepath, _ = urllib.urlretrieve(DATA_URL, filepath, reporthook=_progress)
+            print('Downloaded', filename)
+        
         tarfile.open(filepath, 'r:gz').extractall(dest_directory)
 
 def save_images(images, labels):
